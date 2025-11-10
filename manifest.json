@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Cursor Link: Element Picker",
+  "name": "Cursor Visual Picker: Visual Editor",
   "version": "0.1.0",
-  "description": "Selecciona un elemento en la página, captura su contexto (HTML, selector, estilos) y envíalo a Cursor o a un servidor local.",
+  "description": "Pick any element on the page, capture its context (HTML, selector, styles) and send it to Cursor or a local server.",
   "permissions": [
     "activeTab",
     "storage",
@@ -25,7 +25,7 @@
         "default": "Ctrl+Shift+Y",
         "mac": "Command+Shift+Y"
       },
-      "description": "Activar modo selección"
+      "description": "Activate picking mode"
     }
   },
   "content_scripts": [

@@ -1,6 +1,6 @@
 // background.js (service worker)
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("Cursor Link: Element Picker instalado");
+  console.log("Cursor Visual Picker: Visual Editor instalado");
   // Crear menú contextual
   try {
     chrome.contextMenus.create({

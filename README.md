@@ -1,58 +1,106 @@
-# Cursor Link: Element Picker (Chrome Extension, MV3)
+# Cursor Visual Picker · Visual Editor
 
-**Qué hace:** Permite seleccionar un elemento en cualquier página, capturar su contexto (selector CSS, `outerHTML`, estilos clave, bounding box y, si es posible, nombre de componente React) y **enviar** ese payload a:
-- Un **endpoint local** (por defecto `http://127.0.0.1:3434/cursor`, método `POST`) para que tu servidor lo reenvíe a Cursor / LLM, o
-- Un **deeplink** de Cursor (`cursor://...`) si lo tienes habilitado.
+> MV3 extension that turns any DOM element into an enriched prompt for Cursor, with live visual controls and ready-to-send deep links.
 
-## Instalar (modo desarrollador)
+## ✨ Highlight Reel
 
-1. Clona o descarga esta carpeta.
-2. Chrome → `chrome://extensions/` → Activa **Developer mode** (arriba a la derecha).
-3. `Load unpacked` → selecciona la carpeta de la extensión.
-4. Pinnea la extensión si quieres acceso rápido.
+- **Floating, draggable HUD** · drop the panel anywhere on the screen and switch between prompt and visual modes instantly.
+- **Design-tool-style controls** · sliders, color pickers, tag switching, flex helpers and more applied directly on the page.
+- **Change badges** · every tweak becomes a removable pill before you send it to Cursor.
+- **Deep link or webhook** · either trigger `cursor://` or ship a payload to your local endpoint.
+- **Rich context** · robust CSS selector, `outerHTML`, key styles, bounding box and React metadata when available.
 
-## Uso
+![Demo placeholder](./docs/demo.gif)
 
-1. Abre el popup de la extensión.
-2. (Opcional) Marca **Deeplink a Cursor** si deseas usar `cursor://...`.
-3. Configura **Endpoint local** (si usas servidor) y añade **Notas / Prompt extra** (se adjuntan al payload).
-4. Click en **“Seleccionar elemento”** → en la página, pasa el mouse (verás borde azul) y haz **clic** sobre el elemento objetivo.
-5. El payload se envía al background:
-   - Si usas **endpoint**, hará `POST` al endpoint configurado.
-   - Si usas **deeplink**, abre una pestaña con `cursor://...` con `data` en base64.
+## ⚡ Quick Install (Developer Mode)
 
-## Endpoint sugerido (Node)
+1. Clone this repository.
+2. Open `chrome://extensions` and enable **Developer mode**.
+3. Click **Load unpacked** and select the project folder.
+4. (Optional) Pin the extension to keep the popup handy.
+
+## 🧭 How It Works
+
+1. Open the popup and configure:
+   - `Local endpoint` (e.g. `http://127.0.0.1:3434/cursor`) **or** toggle **Cursor Deeplink**.
+   - `Extra prompt` to append fixed notes to every submission.
+2. Hit **Pick element** (or use `Cmd/Ctrl+Shift+Y`).
+3. Click any node on the page.
+4. The floating panel appears:
+   - **Prompt mode**: draft instructions, check selector and metadata.
+   - **Visual mode**: adjust width, spacing, typography, colors, display, gap, and more.
+   - Every modification becomes a **badge** you can remove individually.
+5. Press **Send**:
+   - With deeplink it opens `cursor://anysphere.cursor-deeplink/prompt`.
+   - With endpoint it performs a `POST` with the full payload. Failures are logged in the console as `[CursorPick]`.
+
+## 🛰️ Sample Payload
+
+```json
+{
+  "meta": { "url": "https://midominio", "title": "Landing", "timestamp": "..." },
+  "selection": {
+    "cssSelector": "div.hero > h1",
+    "outerHTML": "<h1 class=\"hero-title\">Hola</h1>",
+    "text": "Hola",
+    "box": { "x": 120, "y": 320, "w": 560, "h": 120 },
+    "styles": { "font-size": "48px", "color": "rgb(17,17,17)", "display": "block" },
+    "appliedStyles": [
+      { "property": "font-size", "before": "48px", "after": "56px" },
+      { "property": "background-color", "before": "rgba(0,0,0,0)", "after": "#0b5fff" }
+    ],
+    "tagChange": { "before": "div", "after": "section" },
+    "react": { "componentName": "HeroTitle", "ownerStack": ["Hero", "Landing"] }
+  },
+  "feedback": {
+    "notes": "I need stronger contrast in the hero",
+    "visualSummary": "update: font size: 48px → 56px; background color: ...",
+    "intent": "Describe here THE CHANGE you want"
+  }
+}
+```
+
+## ⚙️ Suggested Local Endpoint (Node/Express)
 
 ```js
-// server.js (ejemplo)
 import express from "express";
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
 app.post("/cursor", async (req, res) => {
   const payload = req.body;
-  console.log("Payload recibido:", payload.meta?.url, payload.selection?.cssSelector);
+  console.log("[CursorPick] Received:", payload.meta?.url, payload.selection?.cssSelector);
 
-  // Aquí: formatea un prompt y llama a tu LLM o Cursor (MCP o API)
-  // Por ejemplo, podrías guardar el payload a disco y abrir Cursor con un comando preconfigurado.
+  // TODO: build a prompt and forward it to Cursor, your LLM or MCP.
+  // Example: write the HTML to disk, trigger a CLI tool, etc.
 
-  res.send("ok");
+  res.json({ ok: true });
 });
 
-app.listen(3434, () => console.log("Server on http://127.0.0.1:3434"));
+app.listen(3434, () => console.log("Listening http://127.0.0.1:3434"));
 ```
 
-## Notas técnicas
+## 🛠️ Development Notes
 
-- **React**: el content script intenta usar claves internas (`__reactFiber$`) para obtener `componentName` y `ownerStack`. En producción/minificado puede no funcionar. Alternativa robusta: agregar `data-component="HeroTitle"` en el JSX raíz.
-- **Selector robusto**: evita clases aleatorias largas; incorpora `role` cuando existe.
-- **Estilos**: solo envía un subconjunto (tipografía, color, layout básico) para no sobrecargar.
-- **Seguridad**: valida cualquier acción ejecutada con el payload en el servidor local.
+- **MV3 extension** → service worker in `background.js`, content script in `content.js`, popup UI in `popup.html`/`popup.js`.
+- **Manual reload** → after editing, go back to `chrome://extensions` and click **Reload**.
+- **Logging** → open DevTools on the current tab to inspect the content script; transport issues are logged as `[CursorPick]`.
+- **Shortcuts** → `Cmd/Ctrl+Shift+Y` toggles the picker (configurable via `manifest.json`).
 
-## Roadmap
-- Screenshot del elemento (`captureVisibleTab` + recorte por `box`).
-- Modo múltiples selecciones (agrupar feedback).
-- Perfiles de prompts (UX copy / UI layout / accesibilidad / performance).
-- Integración MCP con Cursor para ida y vuelta.
+## 🧩 Roadmap
 
-```
+- Element screenshot + automatic crop.
+- Hover/active/focus states inspired by design tools.
+- Multi-element selection and grouped prompts.
+- Bidirectional Cursor MCP integration.
+- Sync prompt presets via `chrome.storage.sync`.
+
+## 🤝 Contributing
+
+1. Fork the project and create a descriptive branch.
+2. Keep files ASCII-friendly and respect MV3 constraints.
+3. Open a PR with demos (gifs/screens) and a UX summary.
+
+## 📄 License
+
+This project is licensed under [MIT](./LICENSE). Feel free to use, modify, and distribute it as long as you preserve the copyright notice.
