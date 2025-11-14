@@ -11,6 +11,42 @@ chrome.runtime.onInstalled.addListener(() => {
   } catch (_) {}
 });
 
+async function activatePickerOnTab(tab) {
+  if (!tab?.id) throw new Error("No active tab");
+  const tabUrl = tab.url || "";
+  const isRestrictedScheme = /^(chrome|edge|about|chrome-extension|moz-extension):/i.test(tabUrl);
+  if (isRestrictedScheme) {
+    throw new Error("La pestaña actual no permite scripts de contenido.");
+  }
+
+  const sendStartPick = async () => {
+    await chrome.tabs.sendMessage(tab.id, { type: "START_PICK" });
+    return { injected: false };
+  };
+
+  try {
+    return await sendStartPick();
+  } catch (error) {
+    const message = error?.message || "";
+    const missingReceiver =
+      message.includes("Receiving end does not exist") ||
+      message.includes("No such tab") ||
+      message.includes("No tab with id");
+    if (!missingReceiver) throw error;
+
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        files: ["content.js"]
+      });
+      await sendStartPick();
+      return { injected: true };
+    } catch (injectError) {
+      throw new Error(`No se pudo inyectar el picker: ${injectError.message || injectError}`);
+    }
+  }
+}
+
 // Simple message router
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
@@ -111,8 +147,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // 🔧 Nuevo: encontrar la pestaña activa y mandar START_PICK
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tab?.id) {
-          await chrome.tabs.sendMessage(tab.id, { type: "START_PICK" });
-          sendResponse({ ok: true, tabId: tab.id });
+          const result = await activatePickerOnTab(tab);
+          sendResponse({ ok: true, tabId: tab.id, injected: result.injected });
         } else {
           sendResponse({ ok: false, error: "No active tab" });
         }
@@ -130,7 +166,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "cursor-pick-element" && tab?.id) {
     try {
-      await chrome.tabs.sendMessage(tab.id, { type: "START_PICK" });
+      await activatePickerOnTab(tab);
     } catch (e) {
       console.warn("No se pudo iniciar picker en la pestaña", e);
     }
@@ -142,7 +178,11 @@ chrome.commands?.onCommand.addListener(async (command) => {
   if (command === "start-pick") {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id) {
-      try { await chrome.tabs.sendMessage(tab.id, { type: "START_PICK" }); } catch (_) {}
+      try {
+        await activatePickerOnTab(tab);
+      } catch (err) {
+        console.warn("No se pudo iniciar picker con el atajo", err);
+      }
     }
   }
 });
